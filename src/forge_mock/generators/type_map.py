@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import datetime  # Added import
 from typing import Any, Callable
-
 from faker import Faker
 
 # Each entry is a factory: given a Faker instance + type_params, returns a zero-arg callable.
 TypeGeneratorFactory = Callable[[Faker, list[int]], Callable[[], Any]]
+
+# FIX: Use a datetime object instead of a string
+REFERENCE_DATE = datetime.date(2026, 1, 1)
 
 
 def _varchar(fk: Faker, params: list[int]) -> Callable[[], str]:
@@ -42,18 +45,22 @@ def _smallint_gen(fk: Faker, _params: list[int]) -> Callable[[], int]:
 
 
 def _float_gen(fk: Faker, _params: list[int]) -> Callable[[], float]:
-    return lambda: round(fk.pyfloat(min_value=-1e6, max_value=1e6), 4)
+    return lambda: round(
+        fk.pyfloat(min_value=-1_000_000.0, max_value=1_000_000.0, right_digits=4), 4
+    )
 
 
 def _double_gen(fk: Faker, _params: list[int]) -> Callable[[], float]:
-    return lambda: round(fk.pyfloat(min_value=-1e15, max_value=1e15), 8)
+    return lambda: round(
+        fk.pyfloat(min_value=-1_000_000_000_000.0, max_value=1_000_000_000_000.0, right_digits=4), 8
+    )
 
 
 def _decimal_gen(fk: Faker, params: list[int]) -> Callable[[], float]:
     precision = params[0] if len(params) > 0 else 18
     scale = params[1] if len(params) > 1 else 2
-    max_val = 10 ** (precision - scale)
-    return lambda: round(fk.pyfloat(min_value=0, max_value=max_val), scale)
+    max_val = min(10 ** (precision - scale), 1_000_000_000_000)
+    return lambda: round(fk.pyfloat(min_value=0, max_value=max_val, right_digits=scale), scale)
 
 
 def _bool_gen(fk: Faker, _params: list[int]) -> Callable[[], bool]:
@@ -61,7 +68,7 @@ def _bool_gen(fk: Faker, _params: list[int]) -> Callable[[], bool]:
 
 
 def _date_gen(fk: Faker, _params: list[int]) -> Callable[[], Any]:
-    return lambda: fk.date_between(start_date="-5y", end_date="today")
+    return lambda: fk.date_between(start_date="-5y", end_date=REFERENCE_DATE)
 
 
 def _time_gen(fk: Faker, _params: list[int]) -> Callable[[], str]:
@@ -69,11 +76,11 @@ def _time_gen(fk: Faker, _params: list[int]) -> Callable[[], str]:
 
 
 def _datetime_gen(fk: Faker, _params: list[int]) -> Callable[[], Any]:
-    return lambda: fk.date_time_between(start_date="-5y", end_date="now")
+    return lambda: fk.date_time_between(start_date="-5y", end_date=REFERENCE_DATE)
 
 
 def _timestamp_gen(fk: Faker, _params: list[int]) -> Callable[[], Any]:
-    return lambda: fk.date_time_between(start_date="-5y", end_date="now")
+    return lambda: fk.date_time_between(start_date="-5y", end_date=REFERENCE_DATE)
 
 
 def _uuid_gen(fk: Faker, _params: list[int]) -> Callable[[], str]:

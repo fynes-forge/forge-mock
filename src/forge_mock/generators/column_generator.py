@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import random
 from typing import Any, Callable, Optional
-
 import numpy as np
 from faker import Faker
 
@@ -33,15 +31,13 @@ class ColumnGenerator:
 
     def generate(self, col: ColumnSchema) -> Any:
         """Generate one value for the given column."""
-        # Schema-drift / corruption injection
-        if self._corrupt_rate > 0.0 and random.random() < self._corrupt_rate:
+
+        # 1. Schema-drift / corruption injection (Uses seeded RNG)
+        if self._corrupt_rate > 0.0 and self._rng.random() < self._corrupt_rate:
             return self._inject_corruption(col)
 
-        # NULL injection for nullable columns (~5% chance by default)
-        if col.nullable and not col.is_primary_key and random.random() < 0.05:
-            return None
-
-        # Foreign key → pull from referenced pool
+        # 2. Foreign key logic (High priority)
+        # If an FK pool is provided, we must pull from it to maintain integrity.
         if col.foreign_key is not None:
             pool_key = f"{col.foreign_key.referenced_table}.{col.foreign_key.referenced_column}"
             pool = self._fk_pools.get(pool_key, [])
@@ -49,14 +45,23 @@ class ColumnGenerator:
                 idx = int(self._rng.integers(0, len(pool)))
                 return pool[idx]
 
-        # Distribution override
+        # 3. Distribution override
+        # If a distribution is specified (e.g., 'uniform'), generate that value.
         if col.distribution:
-            return self._dist_gen.build(col.distribution, col.dist_params)
+            dist_val = self._dist_gen.build(col.distribution, col.dist_params)
+            if dist_val is not None:
+                return dist_val
 
-        # Type-based generation
+        # 4. NULL injection for nullable columns (Uses seeded RNG)
+        # We check this AFTER FKs and Distributions so that tests requiring
+        # specific values don't get hit by the 5% random NULL chance.
+        if col.nullable and not col.is_primary_key and self._rng.random() < 0.05:
+            return None
+
+        # 5. Type-based generation (Standard Faker-based generation)
         value = self._generate_by_type(col)
 
-        # Ensure uniqueness for PK / UNIQUE columns
+        # 6. Ensure uniqueness for PK / UNIQUE columns
         if col.is_primary_key or col.is_unique:
             value = self._ensure_unique(col.name, value, col)
 
@@ -67,11 +72,13 @@ class ColumnGenerator:
     # ------------------------------------------------------------------
 
     def _generate_by_type(self, col: ColumnSchema) -> Any:
+        """Calls the factory function associated with the column's base type."""
         factory_fn = TYPE_GENERATOR_MAP.get(col.base_type, TYPE_GENERATOR_MAP["VARCHAR"])
         generator = factory_fn(self._faker, col.type_params)
         return generator()
 
     def _ensure_unique(self, col_name: str, initial_value: Any, col: ColumnSchema) -> Any:
+        """Retries generation until a unique value is found or limit is reached."""
         seen = self._seen_unique.setdefault(col_name, set())
         value = initial_value
         attempts = 0
@@ -82,14 +89,16 @@ class ColumnGenerator:
         return value
 
     def _inject_corruption(self, col: ColumnSchema) -> Any:
-        """Inject bad data for resilience testing."""
+        """Inject bad data for resilience testing using deterministic choices."""
         strategies: list[Callable[[], Any]] = [
-            lambda: None,  # NULL in non-nullable
+            lambda: None,  # NULL in potentially non-nullable col
             lambda: "CORRUPT_VALUE",  # Type mismatch
             lambda: -999_999,  # Out-of-range integer
-            lambda: "9999-99-99",  # Invalid date
+            lambda: "9999-99-99",  # Invalid date format
             lambda: "",  # Empty string
-            lambda: "\x00\x01\x02",  # Control chars
+            lambda: "\x00\x01\x02",  # Binary/Control characters
         ]
-        strategy = random.choice(strategies)
+        # Use seeded numpy generator for deterministic corruption selection
+        idx = int(self._rng.integers(0, len(strategies)))
+        strategy = strategies[idx]
         return strategy()
