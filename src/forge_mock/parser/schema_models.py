@@ -1,4 +1,5 @@
 """Pydantic-style dataclasses for representing parsed SQL schema objects."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -19,9 +20,9 @@ class ColumnSchema:
     """Represents a single column in a SQL table."""
 
     name: str
-    sql_type: str          # Raw SQL type string, e.g. "VARCHAR(255)"
-    base_type: str         # Normalised base type, e.g. "VARCHAR"
-    type_params: list[int] = field(default_factory=list)   # e.g. [255] from VARCHAR(255)
+    sql_type: str  # Raw SQL type string, e.g. "VARCHAR(255)"
+    base_type: str  # Normalised base type, e.g. "VARCHAR"
+    type_params: list[int] = field(default_factory=list)  # e.g. [255] from VARCHAR(255)
     nullable: bool = True
     is_primary_key: bool = False
     is_unique: bool = False

@@ -10,7 +10,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# ── Shared uv version ────────────────────────────────────────────────────────
+env:
+  UV_VERSION: "0.4.x"
+
 jobs:
+  # ── 1. Lint & Format ────────────────────────────────────────────────────────
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest
@@ -19,21 +24,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
 
-      - name: Install Ruff
-        run: pip install ruff
+      - name: Install dev dependencies
+        run: uv sync --only-dev
 
-      - name: Run Ruff linter
-        run: ruff check .
+      - name: Ruff — lint
+        run: uv run ruff check .
 
-      - name: Run Ruff formatter check
-        run: ruff format --check .
+      - name: Ruff — format check
+        run: uv run ruff format --check .
 
+  # ── 2. Type Check ───────────────────────────────────────────────────────────
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
@@ -42,20 +52,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
 
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install mypy
+      - name: Install all dependencies
+        run: uv sync
 
-      - name: Run mypy
-        run: mypy src/
+      - name: mypy
+        run: uv run mypy src/
 
+  # ── 3. Tests ────────────────────────────────────────────────────────────────
   test:
     name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -69,19 +82,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: "pip"
 
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+      - name: Install all dependencies
+        run: uv sync
 
-      - name: Run tests with coverage
-        run: pytest --cov=src --cov-report=xml --cov-report=term-missing
+      - name: Run pytest with coverage
+        run: uv run pytest --cov=src --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -91,20 +106,176 @@ jobs:
           path: coverage.xml
           retention-days: 7
 
-  # ── Summary job — branch protection can require this ──────────────────
+  # ── 4. CLI Smoke Tests ──────────────────────────────────────────────────────
+  cli-smoke:
+    name: CLI Smoke Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install project
+        run: uv sync
+
+      # -- version ---------------------------------------------------------------
+      - name: Smoke — version
+        run: uv run forge-mock version
+
+      # -- inspect ---------------------------------------------------------------
+      - name: Smoke — inspect (postgres)
+        run: uv run forge-mock inspect examples/ecommerce.sql --dialect postgres
+
+      # -- generate: parquet (default) -------------------------------------------
+      - name: Smoke — generate parquet
+        run: |
+          uv run forge-mock generate examples/ecommerce.sql \
+            --rows 50 \
+            --format parquet \
+            --output /tmp/smoke-parquet \
+            --seed 42
+
+      - name: Assert parquet files exist
+        run: |
+          for table in customers categories products orders order_items; do
+            file="/tmp/smoke-parquet/${table}.parquet"
+            if [ ! -f "$file" ]; then
+              echo "MISSING: $file"
+              exit 1
+            fi
+            echo "OK: $file ($(stat -c%s "$file") bytes)"
+          done
+
+      # -- generate: csv ---------------------------------------------------------
+      - name: Smoke — generate csv
+        run: |
+          uv run forge-mock generate examples/ecommerce.sql \
+            --rows 50 \
+            --format csv \
+            --output /tmp/smoke-csv \
+            --seed 42
+
+      - name: Assert csv files exist and have correct row count
+        run: |
+          for table in customers categories products orders order_items; do
+            file="/tmp/smoke-csv/${table}.csv"
+            if [ ! -f "$file" ]; then
+              echo "MISSING: $file"
+              exit 1
+            fi
+            # header + 50 data rows = 51 lines
+            lines=$(wc -l < "$file")
+            if [ "$lines" -ne 51 ]; then
+              echo "WRONG ROW COUNT in $file: expected 51 lines, got $lines"
+              exit 1
+            fi
+            echo "OK: $file ($lines lines)"
+          done
+
+      # -- generate: sql ---------------------------------------------------------
+      - name: Smoke — generate sql
+        run: |
+          uv run forge-mock generate examples/ecommerce.sql \
+            --rows 50 \
+            --format sql \
+            --output /tmp/smoke-sql \
+            --seed 42
+
+      - name: Assert sql files contain INSERT statements
+        run: |
+          for table in customers categories products orders order_items; do
+            file="/tmp/smoke-sql/${table}.sql"
+            if [ ! -f "$file" ]; then
+              echo "MISSING: $file"
+              exit 1
+            fi
+            if ! grep -q "INSERT INTO" "$file"; then
+              echo "NO INSERT INTO found in $file"
+              exit 1
+            fi
+            echo "OK: $file"
+          done
+
+      # -- generate: with config override ----------------------------------------
+      - name: Smoke — generate with yaml config
+        run: |
+          uv run forge-mock generate examples/ecommerce.sql \
+            --rows 50 \
+            --format csv \
+            --config examples/ecommerce_config.yaml \
+            --output /tmp/smoke-config \
+            --seed 42
+
+      - name: Assert config-driven output exists
+        run: |
+          [ -f /tmp/smoke-config/orders.csv ] || (echo "MISSING orders.csv" && exit 1)
+          echo "OK: config override run completed"
+
+      # -- generate: determinism (seed produces identical output) ----------------
+      - name: Smoke — determinism check
+        run: |
+          uv run forge-mock generate examples/ecommerce.sql \
+            --rows 25 --format csv --seed 99 --output /tmp/det-run1
+          uv run forge-mock generate examples/ecommerce.sql \
+            --rows 25 --format csv --seed 99 --output /tmp/det-run2
+          diff /tmp/det-run1/customers.csv /tmp/det-run2/customers.csv \
+            && echo "OK: seed=99 produces identical output" \
+            || (echo "FAIL: outputs differ with same seed" && exit 1)
+
+      # -- generate: corruption mode ---------------------------------------------
+      - name: Smoke — corruption mode
+        run: |
+          uv run forge-mock generate examples/ecommerce.sql \
+            --rows 50 \
+            --format csv \
+            --corrupt 0.1 \
+            --output /tmp/smoke-corrupt \
+            --seed 42
+          [ -f /tmp/smoke-corrupt/customers.csv ] \
+            && echo "OK: corrupt mode completed" \
+            || (echo "MISSING output" && exit 1)
+
+      # -- help text renders without error ---------------------------------------
+      - name: Smoke — help text
+        run: |
+          uv run forge-mock --help
+          uv run forge-mock generate --help
+          uv run forge-mock inspect --help
+
+  # ── 5. Summary gate — require all jobs for branch protection ────────────────
   ci-pass:
     name: CI Pass
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    needs: [lint, typecheck, test, cli-smoke]
     if: always()
 
     steps:
       - name: Check all jobs passed
         run: |
-          if [[ "${{ needs.lint.result }}" != "success" || \
-                "${{ needs.typecheck.result }}" != "success" || \
-                "${{ needs.test.result }}" != "success" ]]; then
-            echo "One or more CI jobs failed."
-            exit 1
-          fi
-          echo "All CI jobs passed."
+          results=(
+            "${{ needs.lint.result }}"
+            "${{ needs.typecheck.result }}"
+            "${{ needs.test.result }}"
+            "${{ needs.cli-smoke.result }}"
+          )
+          failed=0
+          jobs=(lint typecheck test cli-smoke)
+          for i in "${!results[@]}"; do
+            if [[ "${results[$i]}" != "success" ]]; then
+              echo "FAILED: ${jobs[$i]} → ${results[$i]}"
+              failed=1
+            else
+              echo "OK:     ${jobs[$i]}"
+            fi
+          done
+          [ "$failed" -eq 0 ] && echo "All CI jobs passed." || exit 1

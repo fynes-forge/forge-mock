@@ -1,4 +1,5 @@
 """High-level column value generator combining Faker, distributions, and FK pools."""
+
 from __future__ import annotations
 
 import random
@@ -83,11 +84,11 @@ class ColumnGenerator:
     def _inject_corruption(self, col: ColumnSchema) -> Any:
         """Inject bad data for resilience testing."""
         strategies = [
-            lambda: None,                               # NULL in non-nullable
-            lambda: "CORRUPT_VALUE",                    # Type mismatch
-            lambda: -999_999,                           # Out-of-range integer
-            lambda: "9999-99-99",                       # Invalid date
-            lambda: "",                                 # Empty string
-            lambda: "\x00\x01\x02",                     # Control chars
+            lambda: None,  # NULL in non-nullable
+            lambda: "CORRUPT_VALUE",  # Type mismatch
+            lambda: -999_999,  # Out-of-range integer
+            lambda: "9999-99-99",  # Invalid date
+            lambda: "",  # Empty string
+            lambda: "\x00\x01\x02",  # Control chars
         ]
         return random.choice(strategies)()

@@ -1,10 +1,11 @@
 """YAML configuration loader for statistical distribution overrides."""
+
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Optional
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 # Shape of the config file:
 # tables:
@@ -38,12 +39,18 @@ def load_config(path: Optional[str]) -> dict[str, Any]:
     if raw is None:
         return {}
 
-    return raw  # type: ignore[return-value]
+    return raw  # type: ignore[no-any-return]
 
 
 def get_table_config(config: dict[str, Any], table_name: str) -> dict[str, Any]:
     """Extract per-table configuration."""
-    return config.get("tables", {}).get(table_name, {})
+    tables = config.get("tables", {})
+    if not isinstance(tables, dict):
+        return {}
+    table_cfg = tables.get(table_name, {})
+    if not isinstance(table_cfg, dict):
+        return {}
+    return table_cfg
 
 
 def get_column_distribution(

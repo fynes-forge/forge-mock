@@ -1,4 +1,5 @@
 """Core data generation engine orchestrating parsing, dependency resolution, and output."""
+
 from __future__ import annotations
 
 import datetime
@@ -7,7 +8,6 @@ from typing import Any, Optional
 
 import numpy as np
 import polars as pl
-import pyarrow as pa
 import pyarrow.parquet as pq
 from faker import Faker
 from rich.console import Console
@@ -143,8 +143,10 @@ class ForgeEngine:
 
         # Build Polars DataFrame with inferred dtypes
         return pl.DataFrame(
-            {name: self._cast_series(name, values, _get_col(columns, name))
-             for name, values in data.items()}
+            {
+                name: self._cast_series(name, values, _get_col(columns, name))
+                for name, values in data.items()
+            }
         )
 
     def _apply_config_overrides(
@@ -157,6 +159,7 @@ class ForgeEngine:
             if dist:
                 # Clone the column with distribution set
                 import dataclasses
+
                 col = dataclasses.replace(col, distribution=dist, dist_params=params)
             result.append(col)
         return result
@@ -240,7 +243,7 @@ class ForgeEngine:
                     value_strings.append(f"  ({', '.join(vals)})")
 
                 fh.write(
-                    f"INSERT INTO \"{table_name}\" ({col_list}) VALUES\n"
+                    f'INSERT INTO "{table_name}" ({col_list}) VALUES\n'
                     + ",\n".join(value_strings)
                     + ";\n\n"
                 )

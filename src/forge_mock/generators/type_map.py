@@ -1,4 +1,5 @@
 """Mapping from normalised SQL base types to Faker provider callables."""
+
 from __future__ import annotations
 
 from typing import Any, Callable

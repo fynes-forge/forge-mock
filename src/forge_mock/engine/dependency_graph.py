@@ -2,6 +2,7 @@
 
 Uses stdlib collections only — no networkx dependency required.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict, deque
@@ -51,9 +52,7 @@ class DependencyGraph:
         Raises ValueError if the dependency graph contains cycles.
         """
         in_degree = dict(self._in_degree)  # mutable copy
-        queue: deque[str] = deque(
-            sorted(node for node, deg in in_degree.items() if deg == 0)
-        )
+        queue: deque[str] = deque(sorted(node for node, deg in in_degree.items() if deg == 0))
         order: list[str] = []
 
         while queue:

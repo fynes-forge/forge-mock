@@ -1,4 +1,5 @@
 """Tests for the data generation engine."""
+
 from __future__ import annotations
 
 import tempfile
@@ -30,7 +31,11 @@ from tests.fixtures import FK_DDL, SIMPLE_DDL, MULTI_TYPE_DDL
 
 class TestDependencyGraph:
     def _make_table(self, name: str, deps: list[str]) -> TableSchema:
-        cols = [ColumnSchema(name="id", sql_type="INT", base_type="INT", is_primary_key=True, nullable=False)]
+        cols = [
+            ColumnSchema(
+                name="id", sql_type="INT", base_type="INT", is_primary_key=True, nullable=False
+            )
+        ]
         for dep in deps:
             cols.append(
                 ColumnSchema(
@@ -144,18 +149,21 @@ class TestColumnGenerator:
 
     def _make_faker(self) -> Any:
         from faker import Faker
+
         return Faker()
 
     def test_pk_column_not_null(self) -> None:
-        col = ColumnSchema(name="id", sql_type="BIGINT", base_type="BIGINT",
-                           is_primary_key=True, nullable=False)
+        col = ColumnSchema(
+            name="id", sql_type="BIGINT", base_type="BIGINT", is_primary_key=True, nullable=False
+        )
         gen = ColumnGenerator(self._make_faker(), self._make_rng())
         value = gen.generate(col)
         assert value is not None
 
     def test_pk_values_unique(self) -> None:
-        col = ColumnSchema(name="id", sql_type="BIGINT", base_type="BIGINT",
-                           is_primary_key=True, nullable=False)
+        col = ColumnSchema(
+            name="id", sql_type="BIGINT", base_type="BIGINT", is_primary_key=True, nullable=False
+        )
         gen = ColumnGenerator(self._make_faker(), self._make_rng())
         values = [gen.generate(col) for _ in range(100)]
         assert len(set(values)) == 100
@@ -164,17 +172,16 @@ class TestColumnGenerator:
         pool = [10, 20, 30]
         fk = ForeignKeySchema(column="dept_id", referenced_table="dept", referenced_column="id")
         col = ColumnSchema(name="dept_id", sql_type="INT", base_type="INT", foreign_key=fk)
-        gen = ColumnGenerator(
-            self._make_faker(), self._make_rng(),
-            fk_pools={"dept.id": pool}
-        )
+        gen = ColumnGenerator(self._make_faker(), self._make_rng(), fk_pools={"dept.id": pool})
         for _ in range(50):
             v = gen.generate(col)
             assert v in pool
 
     def test_distribution_override(self) -> None:
         col = ColumnSchema(
-            name="amount", sql_type="FLOAT", base_type="FLOAT",
+            name="amount",
+            sql_type="FLOAT",
+            base_type="FLOAT",
             distribution="uniform",
             dist_params={"low": 0.0, "high": 100.0},
         )
@@ -188,11 +195,14 @@ class TestColumnGenerator:
         # At corrupt_rate=1.0, every value should be "corrupted" (may be None, wrong type, etc.)
         values = [gen.generate(col) for _ in range(20)]
         # At least some should be None or non-string
-        assert any(v is None or not isinstance(v, str) or v in ("", "CORRUPT_VALUE") for v in values)
+        assert any(
+            v is None or not isinstance(v, str) or v in ("", "CORRUPT_VALUE") for v in values
+        )
 
     def test_corrupt_rate_0_never_corrupts_pk(self) -> None:
-        col = ColumnSchema(name="id", sql_type="INT", base_type="INT",
-                           is_primary_key=True, nullable=False)
+        col = ColumnSchema(
+            name="id", sql_type="INT", base_type="INT", is_primary_key=True, nullable=False
+        )
         gen = ColumnGenerator(self._make_faker(), self._make_rng(), corrupt_rate=0.0)
         values = [gen.generate(col) for _ in range(50)]
         assert all(v is not None for v in values)
@@ -210,7 +220,9 @@ class TestForgeEngineIntegration:
     def test_simple_table_generates_correct_rows(self) -> None:
         tables = self._parse(SIMPLE_DDL)
         with tempfile.TemporaryDirectory() as tmpdir:
-            engine = ForgeEngine(tables=tables, rows=50, seed=42, output_dir=tmpdir, output_format="csv")
+            engine = ForgeEngine(
+                tables=tables, rows=50, seed=42, output_dir=tmpdir, output_format="csv"
+            )
             results = engine.run()
         assert "users" in results
         assert len(results["users"]) == 50
@@ -218,14 +230,18 @@ class TestForgeEngineIntegration:
     def test_correct_column_count(self) -> None:
         tables = self._parse(SIMPLE_DDL)
         with tempfile.TemporaryDirectory() as tmpdir:
-            engine = ForgeEngine(tables=tables, rows=10, seed=1, output_dir=tmpdir, output_format="csv")
+            engine = ForgeEngine(
+                tables=tables, rows=10, seed=1, output_dir=tmpdir, output_format="csv"
+            )
             results = engine.run()
         assert results["users"].width == 7
 
     def test_fk_referential_integrity(self) -> None:
         tables = self._parse(FK_DDL)
         with tempfile.TemporaryDirectory() as tmpdir:
-            engine = ForgeEngine(tables=tables, rows=20, seed=99, output_dir=tmpdir, output_format="csv")
+            engine = ForgeEngine(
+                tables=tables, rows=20, seed=99, output_dir=tmpdir, output_format="csv"
+            )
             results = engine.run()
 
         dept_ids = set(results["departments"]["dept_id"].to_list())
@@ -239,7 +255,9 @@ class TestForgeEngineIntegration:
         results = []
         for _ in range(2):
             with tempfile.TemporaryDirectory() as tmpdir:
-                engine = ForgeEngine(tables=tables, rows=30, seed=7, output_dir=tmpdir, output_format="csv")
+                engine = ForgeEngine(
+                    tables=tables, rows=30, seed=7, output_dir=tmpdir, output_format="csv"
+                )
                 r = engine.run()
                 results.append(r["users"].to_dicts())
         assert results[0] == results[1]
@@ -249,7 +267,9 @@ class TestForgeEngineIntegration:
         results = []
         for seed in (1, 2):
             with tempfile.TemporaryDirectory() as tmpdir:
-                engine = ForgeEngine(tables=tables, rows=30, seed=seed, output_dir=tmpdir, output_format="csv")
+                engine = ForgeEngine(
+                    tables=tables, rows=30, seed=seed, output_dir=tmpdir, output_format="csv"
+                )
                 r = engine.run()
                 results.append(r["users"].to_dicts())
         assert results[0] != results[1]
@@ -257,21 +277,27 @@ class TestForgeEngineIntegration:
     def test_parquet_output_written(self) -> None:
         tables = self._parse(SIMPLE_DDL)
         with tempfile.TemporaryDirectory() as tmpdir:
-            engine = ForgeEngine(tables=tables, rows=10, seed=0, output_dir=tmpdir, output_format="parquet")
+            engine = ForgeEngine(
+                tables=tables, rows=10, seed=0, output_dir=tmpdir, output_format="parquet"
+            )
             engine.run()
             assert (Path(tmpdir) / "users.parquet").exists()
 
     def test_csv_output_written(self) -> None:
         tables = self._parse(SIMPLE_DDL)
         with tempfile.TemporaryDirectory() as tmpdir:
-            engine = ForgeEngine(tables=tables, rows=10, seed=0, output_dir=tmpdir, output_format="csv")
+            engine = ForgeEngine(
+                tables=tables, rows=10, seed=0, output_dir=tmpdir, output_format="csv"
+            )
             engine.run()
             assert (Path(tmpdir) / "users.csv").exists()
 
     def test_sql_output_written(self) -> None:
         tables = self._parse(SIMPLE_DDL)
         with tempfile.TemporaryDirectory() as tmpdir:
-            engine = ForgeEngine(tables=tables, rows=10, seed=0, output_dir=tmpdir, output_format="sql")
+            engine = ForgeEngine(
+                tables=tables, rows=10, seed=0, output_dir=tmpdir, output_format="sql"
+            )
             engine.run()
             sql_file = Path(tmpdir) / "users.sql"
             assert sql_file.exists()
@@ -281,7 +307,9 @@ class TestForgeEngineIntegration:
     def test_multi_type_table(self) -> None:
         tables = self._parse(MULTI_TYPE_DDL)
         with tempfile.TemporaryDirectory() as tmpdir:
-            engine = ForgeEngine(tables=tables, rows=15, seed=3, output_dir=tmpdir, output_format="csv")
+            engine = ForgeEngine(
+                tables=tables, rows=15, seed=3, output_dir=tmpdir, output_format="csv"
+            )
             results = engine.run()
         assert len(results["events"]) == 15
 
@@ -289,8 +317,12 @@ class TestForgeEngineIntegration:
         tables = self._parse(SIMPLE_DDL)
         with tempfile.TemporaryDirectory() as tmpdir:
             engine = ForgeEngine(
-                tables=tables, rows=50, seed=0, corrupt_rate=0.2,
-                output_dir=tmpdir, output_format="csv"
+                tables=tables,
+                rows=50,
+                seed=0,
+                corrupt_rate=0.2,
+                output_dir=tmpdir,
+                output_format="csv",
             )
             results = engine.run()
         # Engine should still produce a DataFrame; corruption doesn't crash
@@ -330,11 +362,7 @@ class TestConfigLoader:
         assert params == {}
 
     def test_get_column_distribution_present(self) -> None:
-        table_cfg = {
-            "columns": {
-                "price": {"distribution": "normal", "mean": 50.0, "std": 5.0}
-            }
-        }
+        table_cfg = {"columns": {"price": {"distribution": "normal", "mean": 50.0, "std": 5.0}}}
         dist, params = get_column_distribution(table_cfg, "price")
         assert dist == "normal"
         assert params == {"mean": 50.0, "std": 5.0}

@@ -1,4 +1,5 @@
 """NumPy-backed statistical distribution generators."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -32,8 +33,7 @@ class DistributionGenerator:
         dist = distribution.lower()
         if dist not in self.SUPPORTED:
             raise ValueError(
-                f"Unknown distribution '{distribution}'. "
-                f"Supported: {sorted(self.SUPPORTED)}"
+                f"Unknown distribution '{distribution}'. Supported: {sorted(self.SUPPORTED)}"
             )
         method = getattr(self, f"_dist_{dist}")
         return method(**params)

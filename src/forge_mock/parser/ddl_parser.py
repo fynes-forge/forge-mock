@@ -1,4 +1,5 @@
 """SQL DDL parser using sqlglot to extract TableSchema objects."""
+
 from __future__ import annotations
 
 import re
@@ -118,7 +119,9 @@ class DDLParser:
     def parse_sql(self, sql: str) -> list[TableSchema]:
         """Parse raw SQL DDL string and return TableSchema objects."""
         try:
-            statements = sqlglot.parse(sql, dialect=self.dialect, error_level=sqlglot.ErrorLevel.WARN)
+            statements = sqlglot.parse(
+                sql, dialect=self.dialect, error_level=sqlglot.ErrorLevel.WARN
+            )
         except Exception as exc:
             raise ValueError(f"Failed to parse SQL: {exc}") from exc
 

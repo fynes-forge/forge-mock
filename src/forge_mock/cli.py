@@ -1,4 +1,5 @@
 """forge-mock CLI — generate synthetic data from SQL DDL files."""
+
 from __future__ import annotations
 
 from enum import Enum
@@ -60,34 +61,40 @@ def generate(
     ),
     rows: int = typer.Option(
         1000,
-        "--rows", "-r",
+        "--rows",
+        "-r",
         help="Number of rows to generate per table.",
         min=1,
         max=10_000_000,
     ),
     output: Path = typer.Option(
         Path("."),
-        "--output", "-o",
+        "--output",
+        "-o",
         help="Output directory for generated files.",
     ),
     format: OutputFormat = typer.Option(
         OutputFormat.parquet,
-        "--format", "-f",
+        "--format",
+        "-f",
         help="Output file format.",
     ),
     dialect: Dialect = typer.Option(
         Dialect.postgres,
-        "--dialect", "-d",
+        "--dialect",
+        "-d",
         help="SQL dialect of the DDL file.",
     ),
     seed: Optional[int] = typer.Option(
         None,
-        "--seed", "-s",
+        "--seed",
+        "-s",
         help="Random seed for reproducible output (great for CI/CD).",
     ),
     config: Optional[Path] = typer.Option(
         None,
-        "--config", "-c",
+        "--config",
+        "-c",
         help="Path to a YAML config file for statistical distribution overrides.",
     ),
     corrupt: Optional[float] = typer.Option(
@@ -102,7 +109,8 @@ def generate(
     ),
     verbose: bool = typer.Option(
         False,
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         help="Show detailed schema info before generation.",
     ),
 ) -> None:
@@ -187,12 +195,16 @@ def generate(
         err_console.print(f"[bold red]Generation error:[/bold red] {exc}")
         if verbose:
             import traceback
+
             traceback.print_exc()
         raise typer.Exit(1)
 
     # Results table
     result_table = Table(
-        "Table", "Rows", "Columns", "File",
+        "Table",
+        "Rows",
+        "Columns",
+        "File",
         box=box.ROUNDED,
         border_style="green",
         title="[bold green]Generated Datasets",
@@ -241,6 +253,7 @@ def inspect(
 def version() -> None:
     """Print forge-mock version."""
     from forge_mock import __version__
+
     console.print(f"[bold cyan]forge-mock[/bold cyan] [yellow]{__version__}[/yellow]")
 
 
@@ -255,7 +268,12 @@ def _print_schema_summary(tables: list) -> None:  # type: ignore[type-arg]
     for table in tables:
         t: TableSchema = table
         tbl = Table(
-            "Column", "SQL Type", "Base Type", "PK", "Nullable", "FK",
+            "Column",
+            "SQL Type",
+            "Base Type",
+            "PK",
+            "Nullable",
+            "FK",
             box=box.SIMPLE_HEAVY,
             title=f"[bold cyan]{t.name}[/bold cyan] [dim]({t.dialect})[/dim]",
             border_style="blue",
@@ -264,8 +282,7 @@ def _print_schema_summary(tables: list) -> None:  # type: ignore[type-arg]
             fk_label = ""
             if col.foreign_key:
                 fk_label = (
-                    f"→ {col.foreign_key.referenced_table}"
-                    f".{col.foreign_key.referenced_column}"
+                    f"→ {col.foreign_key.referenced_table}.{col.foreign_key.referenced_column}"
                 )
             tbl.add_row(
                 col.name,

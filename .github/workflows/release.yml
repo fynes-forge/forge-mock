@@ -8,10 +8,72 @@ on:
 permissions:
   contents: write
 
+env:
+  UV_VERSION: "0.4.x"
+
 jobs:
-  release:
-    name: Create Release
+  # ── 1. Run full CI before releasing ─────────────────────────────────────────
+  ci-gate:
+    name: CI Gate
+    uses: ./.github/workflows/ci.yml
+
+  # ── 2. Build & publish to PyPI ───────────────────────────────────────────────
+  build-publish:
+    name: Build & Publish
     runs-on: ubuntu-latest
+    needs: ci-gate
+    environment: pypi
+
+    permissions:
+      contents: write
+      id-token: write  # required for PyPI trusted publishing
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Assert pyproject version matches tag
+        run: |
+          TAG_VER="${{ steps.version.outputs.VERSION }}"
+          TOML_VER="v$(uv run python -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print(d['project']['version'])")"
+          if [ "$TAG_VER" != "$TOML_VER" ]; then
+            echo "Version mismatch: tag=$TAG_VER pyproject.toml=$TOML_VER"
+            exit 1
+          fi
+          echo "Version check passed: $TAG_VER"
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # Uses OIDC trusted publishing — no PYPI_TOKEN secret needed.
+        # Configure the trusted publisher at: https://pypi.org/manage/account/publishing/
+
+  # ── 3. Create GitHub Release ─────────────────────────────────────────────────
+  github-release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-publish
+
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -27,19 +89,35 @@ jobs:
         id: changelog
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          # Extract the section for this version from CHANGELOG.md
+          # Extracts the section for this version from CHANGELOG.md
+          # Expects headings like:  ## [1.2.3] - 2024-01-01
           NOTES=$(awk "/^## \[${VERSION#v}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="See [CHANGELOG.md](./CHANGELOG.md) for details."
+          fi
           echo "NOTES<<EOF" >> $GITHUB_OUTPUT
           echo "$NOTES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Install uv (for downloading built artifacts)
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build distributions (for release assets)
+        run: uv build
+
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
-          release_name: "${{ steps.version.outputs.VERSION }}"
+          name: "${{ steps.version.outputs.VERSION }}"
           body: ${{ steps.changelog.outputs.NOTES }}
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(steps.version.outputs.VERSION, '-') }}
+          files: dist/*
