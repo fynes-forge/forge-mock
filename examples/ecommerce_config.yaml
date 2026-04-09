@@ -1,0 +1,48 @@
+# forge-mock example configuration
+# Run: forge generate examples/ecommerce.sql --rows 1000 --config examples/ecommerce_config.yaml
+
+tables:
+  customers:
+    rows: 500
+
+  categories:
+    rows: 20
+
+  products:
+    rows: 200
+    columns:
+      price:
+        distribution: lognormal
+        mean: 3.5      # e^3.5 ≈ $33 median price
+        sigma: 0.8
+      stock_qty:
+        distribution: poisson
+        lam: 50        # average 50 units in stock
+
+  orders:
+    rows: 2000
+    columns:
+      status:
+        distribution: choice
+        values:
+          - pending
+          - processing
+          - shipped
+          - delivered
+          - cancelled
+          - refunded
+      total_amount:
+        distribution: lognormal
+        mean: 4.2      # e^4.2 ≈ $66 median order
+        sigma: 0.9
+
+  order_items:
+    rows: 5000
+    columns:
+      quantity:
+        distribution: poisson
+        lam: 2.5
+      unit_price:
+        distribution: normal
+        mean: 45.0
+        std: 20.0

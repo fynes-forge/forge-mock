@@ -1,4 +1,0 @@
-# Runtime dependencies
-# Add project-specific dependencies here
-# Pin versions for reproducibility: package==1.2.3
-python-dotenv>=1.0.0

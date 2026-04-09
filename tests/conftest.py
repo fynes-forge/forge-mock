@@ -1,12 +1,17 @@
-"""Shared pytest fixtures for the test suite."""
+"""Pytest configuration and shared fixtures."""
+from __future__ import annotations
 
 import pytest
+from faker import Faker
+import numpy as np
 
 
-@pytest.fixture()
-def sample_config() -> dict[str, str]:
-    """Return a minimal config dict for testing."""
-    return {
-        "APP_ENV": "test",
-        "LOG_LEVEL": "DEBUG",
-    }
+@pytest.fixture
+def faker_instance() -> Faker:
+    Faker.seed(0)
+    return Faker()
+
+
+@pytest.fixture
+def rng() -> np.random.Generator:
+    return np.random.default_rng(42)
