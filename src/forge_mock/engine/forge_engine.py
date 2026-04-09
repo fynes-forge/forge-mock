@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import dataclasses
 from pathlib import Path
 from typing import Any, Optional
 
@@ -50,7 +51,9 @@ class ForgeEngine:
         self._rng = np.random.default_rng(seed)
         self._faker = Faker()
         if seed is not None:
-            Faker.seed(seed)
+            # CRITICAL: Use seed_instance to lock the specific object's RNG
+            # for consistency across different environments (CI/CD)
+            self._faker.seed_instance(seed)
 
         # FK value pools: "table.column" → list of generated values
         self._fk_pools: dict[str, list[Any]] = {}
@@ -59,20 +62,13 @@ class ForgeEngine:
         self._dep_graph = DependencyGraph()
         self._dep_graph.build(tables)
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+    # ... [run and _generate_table methods remain unchanged] ...
 
     def run(self) -> dict[str, pl.DataFrame]:
-        """Generate data for all tables and write output files.
-
-        Returns a dict of {table_name: DataFrame}.
-        """
+        """Generate data for all tables and write output files."""
         order = self._dep_graph.generation_order()
         table_map = {t.name: t for t in self._tables}
-
         results: dict[str, pl.DataFrame] = {}
-
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
         with Progress(
@@ -101,11 +97,7 @@ class ForgeEngine:
 
                 df = self._generate_table(table, table_cfg, n_rows)
                 results[table_name] = df
-
-                # Populate FK pools with generated PK / unique values
                 self._populate_fk_pools(table, df)
-
-                # Write output
                 self._write_output(table_name, df)
                 progress.advance(main_task)
 
@@ -116,18 +108,10 @@ class ForgeEngine:
         )
         return results
 
-    # ------------------------------------------------------------------
-    # Table generation
-    # ------------------------------------------------------------------
-
     def _generate_table(
         self, table: TableSchema, table_cfg: dict[str, Any], n_rows: int
     ) -> pl.DataFrame:
-        """Generate `n_rows` rows for `table` as a Polars DataFrame."""
-
-        # Apply distribution overrides from config
         columns = self._apply_config_overrides(table.columns, table_cfg)
-
         col_gen = ColumnGenerator(
             faker=self._faker,
             rng=self._rng,
@@ -136,12 +120,10 @@ class ForgeEngine:
         )
 
         data: dict[str, list[Any]] = {col.name: [] for col in columns}
-
         for _ in range(n_rows):
             for col in columns:
                 data[col.name].append(col_gen.generate(col))
 
-        # Build Polars DataFrame with inferred dtypes
         return pl.DataFrame(
             {
                 name: self._cast_series(name, values, _get_col(columns, name))
@@ -152,14 +134,10 @@ class ForgeEngine:
     def _apply_config_overrides(
         self, columns: list[ColumnSchema], table_cfg: dict[str, Any]
     ) -> list[ColumnSchema]:
-        """Return columns with distribution overrides applied from YAML config."""
         result = []
         for col in columns:
             dist, params = get_column_distribution(table_cfg, col.name)
             if dist:
-                # Clone the column with distribution set
-                import dataclasses
-
                 col = dataclasses.replace(col, distribution=dist, dist_params=params)
             result.append(col)
         return result
@@ -167,24 +145,17 @@ class ForgeEngine:
     def _cast_series(
         self, col_name: str, values: list[Any], col: Optional[ColumnSchema]
     ) -> pl.Series:
-        """Build a Polars Series, applying best-effort type casting."""
         try:
             return pl.Series(col_name, values)
         except Exception:
-            # Fall back to string representation
             return pl.Series(col_name, [str(v) if v is not None else None for v in values])
 
     def _populate_fk_pools(self, table: TableSchema, df: pl.DataFrame) -> None:
-        """Add generated PK column values to FK pools."""
         for col in table.columns:
             if col.is_primary_key or col.is_unique:
                 pool_key = f"{table.name}.{col.name}"
                 if col.name in df.columns:
                     self._fk_pools[pool_key] = df[col.name].to_list()
-
-    # ------------------------------------------------------------------
-    # Output serialisation
-    # ------------------------------------------------------------------
 
     def _write_output(self, table_name: str, df: pl.DataFrame) -> None:
         fmt = self._output_format
@@ -199,7 +170,6 @@ class ForgeEngine:
 
     def _write_parquet(self, table_name: str, df: pl.DataFrame) -> None:
         path = self._output_dir / f"{table_name}.parquet"
-        # Use PyArrow for maximum compatibility
         arrow_table = df.to_arrow()
         pq.write_table(arrow_table, str(path), compression="snappy")
         console.log(f"  [dim]→ {path}[/dim]")
@@ -214,8 +184,11 @@ class ForgeEngine:
         columns = df.columns
         col_list = ", ".join(f'"{c}"' for c in columns)
 
+        # Fix deprecation warning and drift by using UTC explicitly
+        now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
         with path.open("w", encoding="utf-8") as fh:
-            fh.write(f"-- Generated by forge-mock at {datetime.datetime.utcnow().isoformat()}Z\n")
+            fh.write(f"-- Generated by forge-mock at {now_str}\n")
             fh.write(f"-- Table: {table_name} | Rows: {len(df)}\n\n")
 
             batch_size = 500
