@@ -13,11 +13,11 @@ TypeGeneratorFactory = Callable[[Faker, list[int]], Callable[[], Any]]
 def _varchar(fk: Faker, params: list[int]) -> Callable[[], str]:
     max_len = params[0] if params else 255
     if max_len <= 10:
-        return fk.lexify  # type: ignore[return-value]
+        return fk.lexify
     elif max_len <= 50:
-        return fk.name  # type: ignore[return-value]
+        return fk.name
     else:
-        return fk.sentence  # type: ignore[return-value]
+        return fk.sentence
 
 
 def _char(fk: Faker, params: list[int]) -> Callable[[], str]:
@@ -26,7 +26,7 @@ def _char(fk: Faker, params: list[int]) -> Callable[[], str]:
 
 
 def _text(fk: Faker, _params: list[int]) -> Callable[[], str]:
-    return fk.paragraph  # type: ignore[return-value]
+    return fk.paragraph
 
 
 def _int_gen(fk: Faker, _params: list[int]) -> Callable[[], int]:
@@ -57,7 +57,7 @@ def _decimal_gen(fk: Faker, params: list[int]) -> Callable[[], float]:
 
 
 def _bool_gen(fk: Faker, _params: list[int]) -> Callable[[], bool]:
-    return fk.pybool  # type: ignore[return-value]
+    return fk.pybool
 
 
 def _date_gen(fk: Faker, _params: list[int]) -> Callable[[], Any]:
@@ -65,7 +65,7 @@ def _date_gen(fk: Faker, _params: list[int]) -> Callable[[], Any]:
 
 
 def _time_gen(fk: Faker, _params: list[int]) -> Callable[[], str]:
-    return fk.time  # type: ignore[return-value]
+    return fk.time
 
 
 def _datetime_gen(fk: Faker, _params: list[int]) -> Callable[[], Any]:

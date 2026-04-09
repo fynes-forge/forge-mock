@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
 from faker import Faker
@@ -83,7 +83,7 @@ class ColumnGenerator:
 
     def _inject_corruption(self, col: ColumnSchema) -> Any:
         """Inject bad data for resilience testing."""
-        strategies = [
+        strategies: list[Callable[[], Any]] = [
             lambda: None,  # NULL in non-nullable
             lambda: "CORRUPT_VALUE",  # Type mismatch
             lambda: -999_999,  # Out-of-range integer
@@ -91,4 +91,5 @@ class ColumnGenerator:
             lambda: "",  # Empty string
             lambda: "\x00\x01\x02",  # Control chars
         ]
-        return random.choice(strategies)()
+        strategy = random.choice(strategies)
+        return strategy()
