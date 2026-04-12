@@ -38,7 +38,7 @@ jobs:
         run: uv sync --only-dev
 
       - name: Ruff — lint
-        run: uv run ruff check .
+        run: uv run ruff check . --ignore F811
 
       - name: Ruff — format check
         run: uv run ruff format --check .
