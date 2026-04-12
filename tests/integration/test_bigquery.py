@@ -50,7 +50,9 @@ def test_bigquery_introspect(bigquery_url: str) -> None:
     with get_connector(bigquery_url) as connector:
         tables = connector.introspect()
         assert isinstance(tables, list)
-        assert "test_table" in tables
+        # Extract the names from the TableSchema objects
+        table_names = [t.name for t in tables]
+        assert "test_table" in table_names
 
 
 @pytest.mark.integration
