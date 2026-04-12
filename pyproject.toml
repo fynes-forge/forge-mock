@@ -55,6 +55,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "types-pyyaml",
     "google-auth>=2.49.2",
+    "google-cloud-bigquery>=3.41.0",
 ]
 
 [tool.mypy]

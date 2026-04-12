@@ -519,6 +519,7 @@ trino = [
 [package.dev-dependencies]
 dev = [
     { name = "google-auth" },
+    { name = "google-cloud-bigquery" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -556,6 +557,7 @@ provides-extras = ["postgres", "mysql", "trino", "bigquery"]
 [package.metadata.requires-dev]
 dev = [
     { name = "google-auth", specifier = ">=2.49.2" },
+    { name = "google-cloud-bigquery", specifier = ">=3.41.0" },
     { name = "mypy", specifier = ">=1.9.0" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
