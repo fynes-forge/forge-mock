@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import datetime
 from typing import Any, Callable
+
 from faker import Faker
 
 # Each entry is a factory: given a Faker instance + type_params, returns a zero-arg callable.
 TypeGeneratorFactory = Callable[[Faker, list[int]], Callable[[], Any]]
 
 # Fixed reference for absolute determinism in CI/CD environments.
-# We use a fixed UTC datetime object.
 REFERENCE_DATE = datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
-# Number of seconds in 5 years.
 FIVE_YEARS_S = 5 * 365 * 24 * 60 * 60
 
 
@@ -48,33 +47,27 @@ def _smallint_gen(fk: Faker, _params: list[int]) -> Callable[[], int]:
 
 
 def _float_gen(fk: Faker, _params: list[int]) -> Callable[[], float]:
-    # Set right_digits to avoid randrange errors in Python 3.14
-    return lambda: round(
-        fk.pyfloat(min_value=-1_000_000.0, max_value=1_000_000.0, right_digits=4), 4
-    )
+    return lambda: round(fk.pyfloat(min_value=-1e6, max_value=1e6), 4)
 
 
 def _double_gen(fk: Faker, _params: list[int]) -> Callable[[], float]:
-    # Capped at 1e12 for Faker stability
-    return lambda: round(
-        fk.pyfloat(min_value=-1_000_000_000_000.0, max_value=1_000_000_000_000.0, right_digits=4), 8
-    )
+    return lambda: round(fk.pyfloat(min_value=-1e12, max_value=1e12), 8)
 
 
 def _decimal_gen(fk: Faker, params: list[int]) -> Callable[[], float]:
     precision = params[0] if len(params) > 0 else 18
     scale = params[1] if len(params) > 1 else 2
     max_val = min(10 ** (precision - scale), 1_000_000_000_000)
-    return lambda: round(fk.pyfloat(min_value=0, max_value=max_val, right_digits=scale), scale)
+    return lambda: round(fk.pyfloat(min_value=0, max_value=max_val), scale)
 
 
 def _bool_gen(fk: Faker, _params: list[int]) -> Callable[[], bool]:
     return fk.pybool
 
 
-def _date_gen(fk: Faker, _params: list[int]) -> Callable[[], Any]:
-    # Fixed: Uses fk.random which is available on the Faker proxy
+def _date_gen(fk: Faker, _params: list[int]) -> Callable[[], datetime.date]:
     def gen() -> datetime.date:
+        # Use fk.random (the seeded proxy) instead of clock-dependent date_between
         days_offset = fk.random.randint(0, 365 * 5)
         return (REFERENCE_DATE - datetime.timedelta(days=days_offset)).date()
 
@@ -85,19 +78,17 @@ def _time_gen(fk: Faker, _params: list[int]) -> Callable[[], str]:
     return fk.time
 
 
-def _datetime_gen(fk: Faker, _params: list[int]) -> Callable[[], Any]:
-    # Fixed: Uses fk.random for deterministic second/microsecond integers
+def _datetime_gen(fk: Faker, _params: list[int]) -> Callable[[], str]:
     def gen() -> str:
         seconds = fk.random.randint(0, FIVE_YEARS_S)
         micros = fk.random.randint(0, 999999)
         dt = REFERENCE_DATE - datetime.timedelta(seconds=seconds, microseconds=micros)
-        # strftime ensures microsecond padding is identical (.f)
         return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
     return gen
 
 
-def _timestamp_gen(fk: Faker, _params: list[int]) -> Callable[[], Any]:
+def _timestamp_gen(fk: Faker, _params: list[int]) -> Callable[[], str]:
     return _datetime_gen(fk, _params)
 
 

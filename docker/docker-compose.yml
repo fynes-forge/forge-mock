@@ -1,0 +1,82 @@
+version: "3.9"
+
+# forge-mock integration test environment
+# Usage:
+#   docker compose up -d          # start all engines
+#   docker compose up -d postgres # start one engine
+#   docker compose down           # stop and remove containers
+#   docker compose down -v        # also remove volumes
+
+services:
+
+  # ── PostgreSQL 16 ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: forge-postgres
+    environment:
+      POSTGRES_USER:     forge
+      POSTGRES_PASSWORD: forge
+      POSTGRES_DB:       forge_test
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forge -d forge_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d
+
+  # ── MySQL 8 ──────────────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: forge-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: forge
+      MYSQL_DATABASE:      forge_test
+      MYSQL_USER:          forge
+      MYSQL_PASSWORD:      forge
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "forge", "-pforge"]
+      interval: 5s
+      timeout: 10s
+      retries: 15
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # ── Trino ────────────────────────────────────────────────────────────────────
+  trino:
+    image: trinodb/trino:latest
+    container_name: forge-trino
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/v1/info | grep -q '\"starting\":false'"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+    volumes:
+      - ./init/trino/catalog:/etc/trino/catalog
+
+  # ── BigQuery emulator ────────────────────────────────────────────────────────
+  bigquery:
+    image: ghcr.io/goccy/bigquery-emulator:latest
+    container_name: forge-bigquery
+    command:
+      - "--project=forge-project"
+      - "--dataset=forge_test"
+    ports:
+      - "9050:9050"   # gRPC
+      - "9060:9060"   # REST
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9060/bigquery/v2/projects/forge-project/datasets"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  postgres_data:
+  mysql_data:
