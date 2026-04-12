@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.integration.conftest import mysql_url, run_round_trip  # noqa: F401
+from tests.integration.conftest import run_round_trip
 
 
 @pytest.mark.integration

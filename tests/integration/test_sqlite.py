@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.integration.conftest import run_round_trip, sqlite_url  # noqa: F401
+from tests.integration.conftest import run_round_trip
 
 
 @pytest.mark.integration
@@ -32,8 +32,7 @@ def test_sqlite_introspect(sqlite_url: str) -> None:
     engine = create_engine(sqlite_url)
     with engine.begin() as conn:
         conn.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS forge_probe_sqlite (id INTEGER PRIMARY KEY, val TEXT)")
+            text("CREATE TABLE IF NOT EXISTS forge_probe_sqlite (id INTEGER PRIMARY KEY, val TEXT)")
         )
     engine.dispose()
 

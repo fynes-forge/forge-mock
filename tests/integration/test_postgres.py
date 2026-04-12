@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from tests.integration.conftest import postgres_url, run_round_trip  # noqa: F401
+from tests.integration.conftest import run_round_trip
 
 
 @pytest.mark.integration
@@ -63,8 +63,7 @@ def test_postgres_insert_modes(postgres_url: str) -> None:
     engine = create_engine(postgres_url)
     with engine.begin() as conn:
         conn.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS forge_insert_test (id INTEGER PRIMARY KEY, name TEXT)")
+            text("CREATE TABLE IF NOT EXISTS forge_insert_test (id INTEGER PRIMARY KEY, name TEXT)")
         )
         conn.execute(text("TRUNCATE TABLE forge_insert_test"))
 
@@ -80,8 +79,7 @@ def test_postgres_insert_modes(postgres_url: str) -> None:
         assert n == 10
 
         with engine.connect() as conn:
-            count = conn.execute(
-                text("SELECT COUNT(*) FROM forge_insert_test")).scalar()
+            count = conn.execute(text("SELECT COUNT(*) FROM forge_insert_test")).scalar()
             assert count == 10  # truncate cleared previous rows
 
     engine.dispose()

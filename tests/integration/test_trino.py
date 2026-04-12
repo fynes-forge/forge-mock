@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import pytest
 
-from tests.integration.conftest import trino_url  # noqa: F401
-
 
 @pytest.mark.integration
 def test_trino_connection(trino_url: str) -> None:
@@ -29,8 +27,7 @@ def test_trino_introspect(trino_url: str) -> None:
     with engine.begin() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS memory.forge_test"))
         conn.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS memory.forge_test.probe (id INTEGER, val VARCHAR)")
+            text("CREATE TABLE IF NOT EXISTS memory.forge_test.probe (id INTEGER, val VARCHAR)")
         )
     engine.dispose()
 

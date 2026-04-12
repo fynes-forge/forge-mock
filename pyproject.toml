@@ -27,6 +27,12 @@ dependencies = [
     "tqdm>=4.67.3",
 ]
 
+[project.optional-dependencies]
+postgres = ["psycopg2-binary>=2.9.9"]
+mysql = ["pymysql>=1.1.0"]
+trino = ["trino[sqlalchemy]>=0.328.0"]
+bigquery = ["sqlalchemy-bigquery>=1.9.0", "google-cloud-bigquery-storage>=2.24.0"]
+
 [project.scripts]
 forge-mock = "forge_mock.cli:app"
 
@@ -34,13 +40,13 @@ forge-mock = "forge_mock.cli:app"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# Fixes the 'deprecated field' warning
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
     "mypy>=1.9.0",
     "ruff>=0.3.0",
     "pytest-cov>=7.1.0",
+    "types-pyyaml",
 ]
 
 [tool.mypy]
@@ -52,13 +58,18 @@ ignore_missing_imports = true
 line-length = 100
 target-version = "py311"
 
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["F811"] # This specifically kills the error you are seeing in tests
+[tool.ruff.lint]
+# Ensure basic Python rules are checked
+select = ["E", "F", "W"]
 
+[tool.ruff.lint.per-file-ignores]
+# F811: Redefinition of unused name. 
+# We ignore this in tests because Pytest fixtures are often 
+# seen as redefinitions by static linters.
+"tests/*" = ["F811"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Registers your integration markers
 markers = [
     "integration: marks tests as slow integration tests"
 ]

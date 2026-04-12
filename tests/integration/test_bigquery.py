@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import pytest
 
-from tests.integration.conftest import bigquery_url  # noqa: F401
-
 
 @pytest.mark.integration
 def test_bigquery_connection(bigquery_url: str) -> None:

@@ -33,8 +33,7 @@ _DATE_END_PATTERNS = re.compile(
     r"\b(shipped?|delivered?|closed?|end|finished?|terminated?|discharged?|to)[_\s]?(date|at|on|time)?\b",
     re.I,
 )
-_AMOUNT_PATTERNS = re.compile(
-    r"\b(price|amount|cost|fee|total|gross|net)\b", re.I)
+_AMOUNT_PATTERNS = re.compile(r"\b(price|amount|cost|fee|total|gross|net)\b", re.I)
 _DISCOUNT_PATTERNS = re.compile(r"\b(discount|rebate|reduction)\b", re.I)
 _CURRENCY_PATTERNS = re.compile(r"\bcurrenc(y|ies)[_\s]?(code)?\b", re.I)
 
@@ -181,9 +180,7 @@ class CoherencyPass:
                     pl.when(pl.col(dob_col) > pl.lit(cutoff))
                     .then(
                         pl.lit(
-                            cutoff -
-                            datetime.timedelta(
-                                days=int(self._rng.integers(0, 365 * 60)))
+                            cutoff - datetime.timedelta(days=int(self._rng.integers(0, 365 * 60)))
                         )
                     )
                     .otherwise(pl.col(dob_col))
