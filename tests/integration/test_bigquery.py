@@ -6,7 +6,24 @@ Start:    docker compose -f docker/docker-compose.yml up -d bigquery
 
 from __future__ import annotations
 
+import os
+from unittest.mock import MagicMock, patch
+
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def mock_bigquery_credentials():
+    """Mock Google Auth to allow connection to a local emulator without real keys."""
+    with patch("google.auth.default") as mock_auth:
+        # Create a dummy credential object
+        mock_creds = MagicMock()
+        mock_auth.return_value = (mock_creds, "forge-project")
+
+        # Ensure the environment thinks we have a project set
+        os.environ["GOOGLE_CLOUD_PROJECT"] = "forge-project"
+
+        yield
 
 
 @pytest.mark.integration
