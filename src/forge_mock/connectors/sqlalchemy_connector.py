@@ -145,28 +145,36 @@ class SQLAlchemyConnector(BaseConnector):
         self,
         table_name: str,
         df: pl.DataFrame,
-        mode: InsertMode = InsertMode.append,
         schema: str | None = None,
+        mode: InsertMode = InsertMode.append,
     ) -> int:
-        if df.is_empty():
-            return 0
+        from sqlalchemy import text, Table, MetaData
 
-        records = df.to_dicts()
-        full_table_name = f'"{schema}"."{table_name}"' if schema else f'"{table_name}"'
+        meta = MetaData()
+        table_obj = Table(table_name, meta, schema=schema)
+        full_table_name = self._engine.dialect.identifier_preparer.format_table(table_obj)
 
         with self._engine.begin() as conn:
             if mode == InsertMode.truncate:
-                if self._engine.dialect.name == "sqlite":
+                dialect = self._engine.dialect.name
+                if dialect == "sqlite":
                     conn.execute(text(f"DELETE FROM {full_table_name}"))
+                elif dialect in ("mysql", "mariadb", "mssql"):
+                    conn.execute(text(f"TRUNCATE TABLE {full_table_name}"))
                 else:
                     conn.execute(text(f"TRUNCATE TABLE {full_table_name} CASCADE"))
 
-            cols_str = ", ".join([f'"{c}"' for c in df.columns])
-            placeholders = ", ".join([f":{c}" for c in df.columns])
-            stmt = text(f"INSERT INTO {full_table_name} ({cols_str}) VALUES ({placeholders})")
-            conn.execute(stmt, records)
+            # Fix: Qualified name instead of schema argument
+            target_name = f"{schema}.{table_name}" if schema else table_name
 
-        return len(records)
+            df.write_database(
+                table_name=target_name,
+                connection=conn,
+                if_table_exists="append",
+                engine="sqlalchemy",
+            )
+
+        return len(df)
 
     def close(self) -> None:
         self._engine.dispose()

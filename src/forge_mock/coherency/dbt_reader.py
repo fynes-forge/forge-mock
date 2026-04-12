@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 from forge_mock.parser.schema_models import ColumnSchema, ForeignKeySchema, TableSchema
 

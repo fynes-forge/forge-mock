@@ -76,9 +76,9 @@ class BaseConnector(ABC):
     def insert(
         self,
         table_name: str,
-        df: "pl.DataFrame",
-        mode: InsertMode = InsertMode.append,
+        df: pl.DataFrame,
         schema: str | None = None,
+        mode: InsertMode = InsertMode.append,
     ) -> int:
         """Insert a Polars DataFrame into the named table.
 

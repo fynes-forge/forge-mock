@@ -6,7 +6,7 @@ import datetime
 from pathlib import Path
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 
 def write_forge_yaml(

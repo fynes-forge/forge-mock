@@ -26,7 +26,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional, cast
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 
 def load_config(path: Optional[str]) -> dict[str, Any]:
