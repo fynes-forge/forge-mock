@@ -10,18 +10,19 @@ import os
 from unittest.mock import patch
 
 import pytest
-from google.auth.credentials import AnonymousCredentials
 
 
 @pytest.fixture(autouse=True)
 def mock_bigquery_credentials():
+    """Mock Google Auth to allow connection to a local emulator."""
     with patch("google.auth.default") as mock_auth:
+        from google.auth.credentials import AnonymousCredentials
         mock_auth.return_value = (AnonymousCredentials(), "forge-project")
+
         os.environ["GOOGLE_CLOUD_PROJECT"] = "forge-project"
 
-        # This tells the library NOT to go to Google's servers
-        if "BIGQUERY_EMULATOR_HOST" not in os.environ:
-            os.environ["BIGQUERY_EMULATOR_HOST"] = "localhost:9050"
+        # CRITICAL: Must include http:// so the requests adapter recognizes the schema
+        os.environ["BIGQUERY_EMULATOR_HOST"] = "http://localhost:9060"
 
         yield
 
