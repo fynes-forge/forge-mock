@@ -54,6 +54,7 @@ dev = [
     "ruff>=0.3.0",
     "pytest-cov>=7.1.0",
     "types-pyyaml",
+    "google-auth>=2.49.2",
 ]
 
 [tool.mypy]
