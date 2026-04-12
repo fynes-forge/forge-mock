@@ -1,0 +1,246 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/forge_mock/connectors/**"
+      - "tests/integration/**"
+      - "docker/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/forge_mock/connectors/**"
+      - "tests/integration/**"
+      - "docker/**"
+  workflow_dispatch:  # allow manual trigger from GitHub UI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.4.x"
+
+jobs:
+  # ── SQLite — no service container needed, always runs ───────────────────────
+  sqlite:
+    name: SQLite (no container)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install with sqlite extras
+        run: uv sync
+
+      - name: Run SQLite integration tests
+        run: uv run pytest tests/integration/test_sqlite.py -v -m integration
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    name: PostgreSQL ${{ matrix.pg-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        pg-version: ["15", "16"]
+
+    services:
+      postgres:
+        image: postgres:${{ matrix.pg-version }}-alpine
+        env:
+          POSTGRES_USER:     forge
+          POSTGRES_PASSWORD: forge
+          POSTGRES_DB:       forge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U forge -d forge_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install with postgres extras
+        run: uv sync --extra postgres
+
+      - name: Run PostgreSQL integration tests
+        env:
+          FORGE_TEST_POSTGRES: postgresql://forge:forge@localhost:5432/forge_test
+        run: uv run pytest tests/integration/test_postgres.py -v -m integration
+
+  # ── MySQL ────────────────────────────────────────────────────────────────────
+  mysql:
+    name: MySQL 8
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: forge
+          MYSQL_DATABASE:      forge_test
+          MYSQL_USER:          forge
+          MYSQL_PASSWORD:      forge
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -u forge -pforge"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install with mysql extras
+        run: uv sync --extra mysql
+
+      - name: Run MySQL integration tests
+        env:
+          FORGE_TEST_MYSQL: mysql+pymysql://forge:forge@localhost:3306/forge_test
+        run: uv run pytest tests/integration/test_mysql.py -v -m integration
+
+  # ── Trino ────────────────────────────────────────────────────────────────────
+  trino:
+    name: Trino (memory connector)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Start Trino container
+        run: |
+          docker run -d \
+            --name forge-trino \
+            -p 8080:8080 \
+            -v ${{ github.workspace }}/docker/init/trino/catalog:/etc/trino/catalog \
+            trinodb/trino:latest
+
+      - name: Wait for Trino to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/v1/info | grep -q '"starting":false'; then
+              echo "Trino is ready."
+              break
+            fi
+            echo "Waiting for Trino... ($i/30)"
+            sleep 5
+          done
+
+      - name: Install with trino extras
+        run: uv sync --extra trino
+
+      - name: Run Trino integration tests
+        env:
+          FORGE_TEST_TRINO: trino://forge@localhost:8080/memory
+        run: uv run pytest tests/integration/test_trino.py -v -m integration
+
+  # ── BigQuery emulator ────────────────────────────────────────────────────────
+  bigquery:
+    name: BigQuery (emulator)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Start BigQuery emulator
+        run: |
+          docker run -d \
+            --name forge-bigquery \
+            -p 9050:9050 -p 9060:9060 \
+            ghcr.io/goccy/bigquery-emulator:latest \
+            --project=forge-project --dataset=forge_test
+
+      - name: Wait for BigQuery emulator
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:9060/bigquery/v2/projects/forge-project/datasets; then
+              echo "BigQuery emulator ready."
+              break
+            fi
+            echo "Waiting... ($i/20)"
+            sleep 3
+          done
+
+      - name: Install with bigquery extras
+        run: uv sync --extra bigquery
+
+      - name: Run BigQuery integration tests
+        env:
+          FORGE_TEST_BIGQUERY: bigquery://forge-project/forge_test
+          BIGQUERY_EMULATOR_HOST: localhost:9060
+        run: uv run pytest tests/integration/test_bigquery.py -v -m integration
+
+  # ── Summary gate ─────────────────────────────────────────────────────────────
+  integration-pass:
+    name: Integration Pass
+    runs-on: ubuntu-latest
+    needs: [sqlite, postgres, mysql, trino, bigquery]
+    if: always()
+
+    steps:
+      - name: Check all integration jobs passed
+        run: |
+          results=(
+            "${{ needs.sqlite.result }}"
+            "${{ needs.postgres.result }}"
+            "${{ needs.mysql.result }}"
+            "${{ needs.trino.result }}"
+            "${{ needs.bigquery.result }}"
+          )
+          jobs=(sqlite postgres mysql trino bigquery)
+          failed=0
+          for i in "${!results[@]}"; do
+            if [[ "${results[$i]}" != "success" ]]; then
+              echo "FAILED: ${jobs[$i]} → ${results[$i]}"
+              failed=1
+            else
+              echo "OK:     ${jobs[$i]}"
+            fi
+          done
+          [ "$failed" -eq 0 ] && echo "All integration jobs passed." || exit 1
