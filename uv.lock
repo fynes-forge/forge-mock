@@ -524,6 +524,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "sqlalchemy-bigquery" },
     { name = "types-pyyaml" },
 ]
 
@@ -562,6 +563,7 @@ dev = [
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "ruff", specifier = ">=0.3.0" },
+    { name = "sqlalchemy-bigquery", specifier = ">=1.16.0" },
     { name = "types-pyyaml" },
 ]
 
